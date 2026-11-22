@@ -7,8 +7,7 @@ Open `index.html` in a browser (or host it on GitHub Pages), drag in a batch of 
 ## What it produces
 
 - **Meet overview**: events, heats loaded, heats missing (when a start list is added), swims, flagged lanes, largest pad/backup difference.
-- **Exceptions**: only the lanes the referee needs to look at.
-- **Referee summary by event**: one page per event, a table per heat showing the official **pad** time, both backup times, and each backup's difference from the pad (Δ = backup − pad), with an optional sign-off line.
+- **Exceptions**: every event in its own boxed block. Events with problems list each flagged lane: the official **pad** time, both backup times, and each backup's difference from the pad (Δ = backup − pad). Clean events say so in one line.
 
 A lane is flagged (▲, shaded) when a backup differs from the pad by at least the review threshold (default 0.30 s), when the two backups disagree by that much, or when a pad or backup time is missing.
 

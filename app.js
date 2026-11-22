@@ -29,13 +29,12 @@
     drop: $('dropZone'), input: $('fileInput'), status: $('fileStatus'), report: $('report'),
     print: $('printBtn'), clear: $('clearBtn'),
     meetName: $('meetName'), meetSession: $('meetSession'), threshold: $('threshold'), laneBase: $('laneBase'),
-    optOverview: $('optOverview'), optExceptions: $('optExceptions'), optEvents: $('optEvents'),
-    optSplits: $('optSplits'), optSignoff: $('optSignoff'),
+    optOverview: $('optOverview'), optExceptions: $('optExceptions'),
   };
   const emptyStateHTML = els.report.innerHTML;
 
   /* ---------------- settings (per-browser convenience only) ---------------- */
-  const SETTINGS = ['meetName', 'meetSession', 'threshold', 'laneBase', 'optOverview', 'optExceptions', 'optEvents', 'optSplits', 'optSignoff'];
+  const SETTINGS = ['meetName', 'meetSession', 'threshold', 'laneBase', 'optOverview', 'optExceptions'];
   function loadSettings() {
     try {
       const s = JSON.parse(localStorage.getItem('ksc-quantum-settings') || '{}');
@@ -375,35 +374,27 @@
   }
 
   function exceptionsPage(data, showNames) {
-    const tables = data.events.map((ev) => {
+    const blocks = data.events.map((ev) => {
       const flaggedHeats = ev.heats
         .map((h) => ({ ...h, rows: h.rows.filter((r) => r.flags.length) }))
         .filter((h) => h.rows.length);
-      if (!flaggedHeats.length) return '';
-      return `<div class="heat"><h3>${esc(eventTitle(ev))} <small>${esc(roundLabel(ev.round))}</small></h3>
-        ${flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showSplits: false, showNames })}</div>`).join('')}
-      </div>`;
+      const heatsText = `${ev.heats.length} heat${ev.heats.length === 1 ? '' : 's'} · ${ev.swimmers} swims · `
+        + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`;
+      const missing = ev.missing.length ? `<p class="event-note">Heats not loaded: ${ev.missing.join(', ')}</p>` : '';
+      const body = flaggedHeats.length
+        ? flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showSplits: false, showNames })}</div>`).join('')
+        : `<p class="event-clear">✓ No lanes flagged — heats ${ev.heats.map((h) => h.heat).join(', ')} all within ${threshold().toFixed(2)} s.</p>`;
+      return `<article class="event-block${flaggedHeats.length ? '' : ' clear'}">
+        <header class="event-head">
+          <div class="event-num"><span>Event</span>${ev.event}</div>
+          <div class="event-title"><h2>${esc(ev.name || `Event ${ev.event}`)}</h2><div>${esc(roundLabel(ev.round))}</div></div>
+          <div class="event-meta">${heatsText}</div>
+        </header>
+        <div class="event-body">${missing}${body}</div>
+      </article>`;
     }).join('');
-    return `<section class="page">${pageHead('Exceptions — Lanes to Review', `Only lanes flagged at ≥ ${threshold().toFixed(2)} s or with a missing time`)}
-      ${legend()}${tables || '<p class="none">No lanes flagged. Every swim has a pad time and two backups within the threshold.</p>'}
-    </section>`;
-  }
-
-  function eventPage(ev, opts) {
-    const heats = ev.heats.map((h) => `<div class="heat">
-      <h3>Heat ${h.heat}<small>${h.rows.filter((r) => r.flags.length).length ? `${h.rows.filter((r) => r.flags.length).length} flagged · ` : ''}${esc(h.file)}</small></h3>
-      ${heatTable(ev, h, opts)}</div>`).join('');
-    const missing = ev.missing.length ? `<p class="legend"><strong>Heats not loaded:</strong> ${ev.missing.join(', ')}</p>` : '';
-    const signoff = opts.signoff
-      ? '<div class="signoff"><span>Referee signature</span><span>Name</span><span>Date / time</span></div>' : '';
-    return `<section class="page">${pageHead(eventTitle(ev), `${roundLabel(ev.round)} · Referee Summary`)}
-      <div class="stats">
-        <div class="stat"><b>${ev.heats.length}</b><span>Heats</span></div>
-        <div class="stat"><b>${ev.swimmers}</b><span>Swims</span></div>
-        <div class="stat"><b>${ev.flagged}</b><span>Flagged</span></div>
-        <div class="stat"><b>${ev.maxAbs.toFixed(2)}</b><span>Largest |Δ| (s)</span></div>
-      </div>
-      ${legend()}${missing}${heats}${signoff}
+    return `<section class="page">${pageHead('Exceptions — Lanes to Review', `Flagged lanes at ≥ ${threshold().toFixed(2)} s or with a missing time, by event`)}
+      ${legend()}${blocks}
     </section>`;
   }
 
@@ -421,11 +412,9 @@
     if (!has) { els.report.innerHTML = emptyStateHTML; return; }
     const data = analyse();
     const showNames = state.startList.size > 0;
-    const opts = { showSplits: els.optSplits.checked, showNames, signoff: els.optSignoff.checked };
     let html = '';
     if (els.optOverview.checked) html += overviewPage(data);
     if (els.optExceptions.checked) html += exceptionsPage(data, showNames);
-    if (els.optEvents.checked) html += data.events.map((ev) => eventPage(ev, opts)).join('');
     els.report.innerHTML = html || '<div class="empty-state no-print"><h1>No reports selected</h1><p>Tick at least one report in step 3.</p></div>';
   }
 
