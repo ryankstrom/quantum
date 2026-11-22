@@ -35,11 +35,10 @@ code { font-family: var(--mono); font-size: .92em; }
   position: sticky; top: 0; z-index: 10;
 }
 .brand { display: flex; align-items: center; gap: 12px; }
-/* The logo PNG has a transparent background; recreate its olive backdrop so the black letters show on the black header. */
+/* The logo PNG has a transparent background; sit it on white so the black letters show on the black header. */
 .brand-mark {
   width: 52px; height: 52px; border-radius: 10px; flex: none; display: block;
-  background: radial-gradient(circle at 45% 35%, #6e8b47 0%, #4b6329 60%, #33441d 100%);
-  box-shadow: 0 0 0 2px var(--green);
+  background: #fff; padding: 3px;
 }
 .brand-name { font-weight: 800; font-size: 17px; letter-spacing: .2px; }
 .brand-sub { font-size: 12px; color: var(--green); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 600; }
