@@ -73,10 +73,11 @@
     return min ? `${min}:${sec.toFixed(2).padStart(5, '0')}` : sec.toFixed(2);
   }
   const delta = (b, pad) => (b == null || pad == null ? null : Math.round((b - pad) * 100) / 100);
-  function fmtDelta(d) {
-    if (d == null) return '';
-    if (d === 0) return '0.00';
-    return (d > 0 ? '+' : '−') + Math.abs(d).toFixed(2);
+  // Average of the available backup times, truncated to hundredths.
+  function backupAverage(a, b) {
+    const ts = [a, b].filter((t) => t != null).map((t) => Math.round(t * 100));
+    if (!ts.length) return null;
+    return Math.floor(ts.reduce((x, y) => x + y, 0) / ts.length) / 100;
   }
   const threshold = () => { const v = parseFloat(els.threshold.value); return Number.isFinite(v) && v >= 0 ? v : 0.3; };
 
@@ -256,8 +257,7 @@
         const notes = [];
         if (r.code) notes.push(r.code);
         if (sl && !entry) notes.push('Not on start list');
-        const maxAbs = Math.max(dA == null ? 0 : Math.abs(dA), dB == null ? 0 : Math.abs(dB));
-        rows.push({ ...r, lane, entry, dA, dB, maxAbs, flags, notes });
+        rows.push({ ...r, lane, entry, backupAvg: backupAverage(r.backupA, r.backupB), flags, notes });
       }
       if (sl) {
         for (const [lane, entry] of sl) {
@@ -279,7 +279,6 @@
       const swum = ev.heats.flatMap((h) => h.rows.filter((r) => !r.empty));
       ev.swimmers = swum.length;
       ev.flagged = swum.filter((r) => r.flags.length).length;
-      ev.maxAbs = swum.reduce((m, r) => Math.max(m, r.maxAbs || 0), 0);
       const planned = state.startHeats.get(ev.event);
       const loaded = new Set(ev.heats.map((h) => h.heat));
       ev.missing = planned ? [...planned].filter((h) => !loaded.has(h)).sort((a, b) => a - b) : [];
@@ -309,42 +308,42 @@
     return `<td>${esc(who)} <span class="club">${esc(e.club)}</span>${legs}</td>`;
   }
 
-  function deltaCell(d) {
-    const big = d != null && Math.abs(d) >= threshold() - 1e-9;
-    return `<td class="num${big ? ' big' : ''}">${fmtDelta(d)}</td>`;
+  // Fixed column widths so every heat table on a page lines up.
+  function colgroup(showNames) {
+    const cols = showNames
+      ? ['6%', '5%', '25%', '11%', '11%', '11%', '11%', '20%']
+      : ['7%', '6%', '13%', '13%', '13%', '13%', '35%'];
+    return `<colgroup>${cols.map((w) => `<col style="width:${w}">`).join('')}</colgroup>`;
   }
 
-  function heatTable(ev, heat, { showSplits, showNames, showEvent = false }) {
+  function heatTable(ev, heat, { showNames }) {
     const head = `<tr>
-      ${showEvent ? '<th>Event / Heat</th>' : ''}
       <th class="c">Lane</th><th class="c">Pl</th>
       ${showNames ? '<th>Swimmer</th>' : ''}
-      <th class="num">Pad (official)</th><th class="num">Backup A</th><th class="num">Δ A</th>
-      <th class="num">Backup B</th><th class="num">Δ B</th><th>Review</th>
+      <th class="num">Pad (official)</th><th class="num">Backup A</th><th class="num">Backup B</th>
+      <th class="num">Backup avg</th><th>Review</th>
     </tr>`;
     const body = heat.rows.map((r) => {
-      const evCell = showEvent ? `<td>E${ev.event} H${heat.heat}</td>` : '';
       if (r.empty) {
-        return `<tr class="empty">${evCell}<td class="c">${r.lane}</td><td class="c"></td>${showNames ? swimmerCell(r) : ''}
-          <td colspan="5">—</td><td>${esc(r.notes.join('; '))}</td></tr>`;
+        return `<tr class="empty"><td class="c">${r.lane}</td><td class="c"></td>${showNames ? swimmerCell(r) : ''}
+          <td colspan="4">—</td><td>${esc(r.notes.join('; '))}</td></tr>`;
       }
-      const split = showSplits && r.splits.length > 1
-        ? `<div class="splits">${r.splits.slice(0, -1).map(fmtTime).join(' · ')}</div>` : '';
       const review = [...r.flags, ...r.notes].join('; ');
-      return `<tr class="${r.flags.length ? 'flag' : ''}">${evCell}
+      return `<tr class="${r.flags.length ? 'flag' : ''}">
         <td class="c">${r.lane}</td><td class="c">${r.place ? r.place : ''}</td>
         ${showNames ? swimmerCell(r) : ''}
-        <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}${split}</td>
-        <td class="num">${fmtTime(r.backupA)}</td>${deltaCell(r.dA)}
-        <td class="num">${fmtTime(r.backupB)}</td>${deltaCell(r.dB)}
+        <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}</td>
+        <td class="num">${fmtTime(r.backupA)}</td>
+        <td class="num">${fmtTime(r.backupB)}</td>
+        <td class="num">${fmtTime(r.backupAvg)}</td>
         <td class="flagcell">${r.flags.length ? '▲ ' : ''}${esc(review)}</td>
       </tr>`;
     }).join('');
-    return `<table class="rs"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    return `<table class="rs">${colgroup(showNames)}<thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
   function legend() {
-    return `<p class="legend">Δ = backup − pad, in seconds (+ means the backup is slower than the pad). ▲ shaded rows need the referee's attention:
+    return `<p class="legend">Backup avg = average of the backup times, truncated to hundredths. ▲ shaded rows need the referee's attention:
       a backup differs from the pad by ≥ ${threshold().toFixed(2)} s, the two backups disagree by that much, or a time is missing.</p>`;
   }
 
@@ -356,8 +355,7 @@
       <td>${esc(eventTitle(ev))}</td><td>${esc(roundLabel(ev.round))}</td>
       <td>${ev.heats.map((h) => h.heat).join(', ')}</td>
       <td>${ev.missing.length ? ev.missing.join(', ') : (state.startHeats.has(ev.event) ? 'none' : '—')}</td>
-      <td class="num">${ev.swimmers}</td><td class="num">${ev.flagged}</td>
-      <td class="num">${ev.maxAbs.toFixed(2)}</td></tr>`).join('');
+      <td class="num">${ev.swimmers}</td><td class="num">${ev.flagged}</td></tr>`).join('');
     return `<section class="page">${pageHead('Meet Overview', 'Referee summary of Quantum heat results')}
       <div class="stats">
         <div class="stat"><b>${data.events.length}</b><span>Events</span></div>
@@ -366,7 +364,7 @@
         <div class="stat"><b>${flagged}</b><span>Flagged lanes</span></div>
       </div>
       <table class="rs"><thead><tr><th>Event</th><th>Round</th><th>Heats loaded</th><th>Heats not loaded</th>
-        <th class="num">Swims</th><th class="num">Flagged</th><th class="num">Largest |Δ|</th></tr></thead>
+        <th class="num">Swims</th><th class="num">Flagged</th></tr></thead>
         <tbody>${rows}</tbody></table>
       <p class="legend" style="margin-top:12px">Review threshold ${threshold().toFixed(2)} s · lane numbering: first row = lane ${data.base}.
       ${state.startHeats.size ? '' : 'Add quantum.slx to list heats that have not been loaded and to show swimmer names.'}</p>
@@ -382,7 +380,7 @@
         + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`;
       const missing = ev.missing.length ? `<p class="event-note">Heats not loaded: ${ev.missing.join(', ')}</p>` : '';
       const body = flaggedHeats.length
-        ? flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showSplits: false, showNames })}</div>`).join('')
+        ? flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showNames })}</div>`).join('')
         : `<p class="event-clear">✓ No lanes flagged — heats ${ev.heats.map((h) => h.heat).join(', ')} all within ${threshold().toFixed(2)} s.</p>`;
       return `<article class="event-block${flaggedHeats.length ? '' : ' clear'}">
         <header class="event-head">

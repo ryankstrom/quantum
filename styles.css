@@ -129,6 +129,9 @@ code { font-family: var(--mono); font-size: .92em; }
 .heat h3 small { font-weight: 400; color: #333; }
 
 table.rs { width: 100%; border-collapse: collapse; font-size: 12px; }
+/* Heat tables use fixed column widths (see colgroup in app.js) so columns line up across heats and events. */
+.event-body table.rs { table-layout: fixed; }
+.event-body table.rs td { overflow-wrap: anywhere; }
 table.rs th, table.rs td { border: 1px solid #9a9a9a; padding: 3px 6px; text-align: left; vertical-align: top; }
 table.rs th { background: #e4e4e4; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; }
 table.rs td.num, table.rs th.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
