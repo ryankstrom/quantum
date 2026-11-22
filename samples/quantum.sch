@@ -1,0 +1,12 @@
+19;Girls 200 SC Meter Freestyle;4;F;0;109;200;A;I;P
+20;Boys 200 SC Meter Freestyle;4;M;0;109;200;A;I;P
+21;Girls 50 SC Meter Backstroke;1;F;0;109;50;B;I;P
+22;Boys 50 SC Meter Backstroke;1;M;0;109;50;B;I;P
+23;Girls 100 SC Meter Butterfly;2;F;0;109;100;D;I;P
+24;Boys 100 SC Meter Butterfly;2;M;0;109;100;D;I;P
+25;Girls 100 SC Meter Breaststroke;2;F;0;109;100;C;I;P
+26;Boys 100 SC Meter Breaststroke;2;M;0;109;100;C;I;P
+27;Girls 50 SC Meter Freestyle;1;F;0;109;50;A;I;P
+28;Boys 50 SC Meter Freestyle;1;M;0;109;50;A;I;P
+29;Girls 400 SC Meter IM;8;F;0;109;400;E;I;T
+30;Boys 400 SC Meter IM;8;M;0;109;400;E;I;T

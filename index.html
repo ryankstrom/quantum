@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quantum Referee Summary · Killarney Swim Club</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header no-print">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+        <rect width="48" height="48" rx="12" fill="currentColor"/>
+        <path d="M8 20c4 0 4-3 8-3s4 3 8 3 4-3 8-3 4 3 8 3" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+        <path d="M8 29c4 0 4-3 8-3s4 3 8 3 4-3 8-3 4 3 8 3" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+        <path d="M8 38c4 0 4-3 8-3s4 3 8 3 4-3 8-3 4 3 8 3" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".4"/>
+      </svg>
+      <div>
+        <div class="brand-name">Killarney Swim Club</div>
+        <div class="brand-sub">Quantum Referee Summary</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="clearBtn" class="btn btn-ghost" disabled>Clear</button>
+      <button id="printBtn" class="btn btn-primary" disabled>Print / Save PDF</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel no-print">
+      <section class="card">
+        <h2>1 · Add files</h2>
+        <label id="dropZone" class="drop-zone" tabindex="0">
+          <input id="fileInput" type="file" multiple accept=".qaq,.sch,.slx,.txt" hidden>
+          <strong>Drop .qaq heat files here</strong>
+          <span>or click to choose · folders work too</span>
+          <small>Optional: add <code>quantum.sch</code> for event names and <code>quantum.slx</code> for swimmer names.</small>
+        </label>
+        <p class="privacy">Files are read in your browser only. Nothing is uploaded or modified.</p>
+        <div id="fileStatus" class="file-status"></div>
+      </section>
+
+      <section class="card">
+        <h2>2 · Meet details</h2>
+        <label class="field">Meet name<input id="meetName" type="text" placeholder="e.g. Killarney Fall Invitational"></label>
+        <label class="field">Session / date<input id="meetSession" type="text" placeholder="e.g. Session 1 · Sat Nov 22"></label>
+        <label class="field">Review threshold (seconds)
+          <input id="threshold" type="number" min="0" step="0.01" value="0.30">
+          <small>Lanes where a backup differs from the pad by at least this much are flagged.</small>
+        </label>
+        <label class="field">Lane numbering
+          <select id="laneBase">
+            <option value="auto">Auto (match start list)</option>
+            <option value="1">First row = lane 1</option>
+            <option value="0">First row = lane 0</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>3 · Reports to print</h2>
+        <label class="check"><input type="checkbox" id="optOverview" checked> Meet overview</label>
+        <label class="check"><input type="checkbox" id="optExceptions" checked> Exceptions only (flagged lanes)</label>
+        <label class="check"><input type="checkbox" id="optEvents" checked> Referee summary by event</label>
+        <label class="check"><input type="checkbox" id="optSplits"> Include splits in event detail</label>
+        <label class="check"><input type="checkbox" id="optSignoff" checked> Referee sign-off line per event</label>
+      </section>
+    </aside>
+
+    <section id="report" class="report">
+      <div class="empty-state no-print">
+        <h1>Drop your Quantum heat files to begin</h1>
+        <p>Each <code>.qaq</code> file is one heat. The summary compares the official <strong>pad</strong> time with both backup times for every lane, groups heats by event, and flags anything the referee should look at.</p>
+        <p class="muted">Output is designed for a black-and-white printer: use <em>Print / Save PDF</em>.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
