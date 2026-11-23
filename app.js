@@ -349,7 +349,7 @@
     const head = `<tr>
       <th class="c">Lane</th><th class="c">Pl</th>
       ${showNames ? '<th>Swimmer</th>' : ''}
-      <th class="num">Pad (official)</th><th class="num">Backup A</th><th class="num">Backup B</th>
+      <th class="num">Official</th><th class="num">Backup A</th><th class="num">Backup B</th>
       <th class="num">Backup avg</th><th>Review</th>
     </tr>`;
     const body = heat.rows.map((r) => {
