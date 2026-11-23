@@ -57,7 +57,19 @@
       </section>
 
       <section class="card">
-        <h2>3 · Reports to print</h2>
+        <h2>3 · Backup times used</h2>
+        <p class="hint">Quantum overwrites the pad time with the backup average and leaves no marker, so mark those lanes here. They appear on the Exceptions page.</p>
+        <div class="mark-form">
+          <label>Event<select id="markEvent" disabled></select></label>
+          <label>Heat<select id="markHeat" disabled></select></label>
+          <label>Lane<select id="markLane" disabled></select></label>
+          <button id="markAdd" class="btn btn-small" disabled>Mark</button>
+        </div>
+        <ul id="markList" class="mark-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>4 · Reports to print</h2>
         <label class="check"><input type="checkbox" id="optOverview" checked> Meet overview</label>
         <label class="check"><input type="checkbox" id="optExceptions" checked> Exceptions (flagged lanes by event)</label>
       </section>

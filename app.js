@@ -22,7 +22,9 @@
     startList: new Map(),   // "event|heat|round" and "event|heat" -> Map(lane -> entry)
     startHeats: new Map(),  // event number -> Set(heat numbers) from .slx
     files: [],              // {name, kind, ok, msg}
+    marks: new Set(),       // "session|event|round|heat|lane" where a backup time was used
   };
+  let lastData = null;
 
   const $ = (id) => document.getElementById(id);
   const els = {
@@ -30,6 +32,7 @@
     print: $('printBtn'), clear: $('clearBtn'),
     meetName: $('meetName'), meetSession: $('meetSession'), threshold: $('threshold'), laneBase: $('laneBase'),
     optOverview: $('optOverview'), optExceptions: $('optExceptions'),
+    markEvent: $('markEvent'), markHeat: $('markHeat'), markLane: $('markLane'), markAdd: $('markAdd'), markList: $('markList'),
   };
   const emptyStateHTML = els.report.innerHTML;
 
@@ -50,6 +53,14 @@
       for (const k of SETTINGS) s[k] = els[k].type === 'checkbox' ? els[k].checked : els[k].value;
       localStorage.setItem('ksc-quantum-settings', JSON.stringify(s));
     } catch (_) { /* ignore */ }
+  }
+
+  // Backup-time marks are kept per browser so a page refresh doesn't lose them; Clear wipes them.
+  function loadMarks() {
+    try { state.marks = new Set(JSON.parse(localStorage.getItem('ksc-quantum-marks') || '[]')); } catch (_) { /* ignore */ }
+  }
+  function saveMarks() {
+    try { localStorage.setItem('ksc-quantum-marks', JSON.stringify([...state.marks])); } catch (_) { /* ignore */ }
   }
 
   /* ---------------- helpers ---------------- */
@@ -254,10 +265,16 @@
         else if (backups === 1) flags.push('1 BACKUP');
         if ((dA != null && Math.abs(dA) >= thr) || (dB != null && Math.abs(dB) >= thr)) flags.push('PAD vs BACKUP');
         if (r.backupA != null && r.backupB != null && Math.abs(r.backupA - r.backupB) >= thr) flags.push('BACKUPS DIFFER');
+        const backupAvg = backupAverage(r.backupA, r.backupB);
+        const backupUsed = state.marks.has(`${heat.key}|${lane}`);
+        if (backupUsed) flags.unshift('BACKUP TIME USED');
         const notes = [];
+        if (backupUsed && r.pad != null && backupAvg != null && Math.round(r.pad * 100) !== Math.round(backupAvg * 100)) {
+          notes.push('Pad field ≠ backup avg — check Quantum');
+        }
         if (r.code) notes.push(r.code);
         if (sl && !entry) notes.push('Not on start list');
-        rows.push({ ...r, lane, entry, backupAvg: backupAverage(r.backupA, r.backupB), flags, notes });
+        rows.push({ ...r, lane, entry, backupAvg, backupUsed, flags, notes });
       }
       if (sl) {
         for (const [lane, entry] of sl) {
@@ -279,6 +296,7 @@
       const swum = ev.heats.flatMap((h) => h.rows.filter((r) => !r.empty));
       ev.swimmers = swum.length;
       ev.flagged = swum.filter((r) => r.flags.length).length;
+      ev.backupUsed = swum.filter((r) => r.backupUsed).length;
       const planned = state.startHeats.get(ev.event);
       const loaded = new Set(ev.heats.map((h) => h.heat));
       ev.missing = planned ? [...planned].filter((h) => !loaded.has(h)).sort((a, b) => a - b) : [];
@@ -329,10 +347,12 @@
           <td colspan="4">—</td><td>${esc(r.notes.join('; '))}</td></tr>`;
       }
       const review = [...r.flags, ...r.notes].join('; ');
-      return `<tr class="${r.flags.length ? 'flag' : ''}">
+      const cls = [r.flags.length ? 'flag' : '', r.backupUsed ? 'backup-used' : ''].join(' ').trim();
+      const padLabel = r.backupUsed ? '<div class="tag">from backups</div>' : '';
+      return `<tr class="${cls}">
         <td class="c">${r.lane}</td><td class="c">${r.place ? r.place : ''}</td>
         ${showNames ? swimmerCell(r) : ''}
-        <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}</td>
+        <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}${padLabel}</td>
         <td class="num">${fmtTime(r.backupA)}</td>
         <td class="num">${fmtTime(r.backupB)}</td>
         <td class="num">${fmtTime(r.backupAvg)}</td>
@@ -344,7 +364,8 @@
 
   function legend() {
     return `<p class="legend">Backup avg = average of the backup times, truncated to hundredths. ▲ shaded rows need the referee's attention:
-      a backup differs from the pad by ≥ ${threshold().toFixed(2)} s, the two backups disagree by that much, or a time is missing.</p>`;
+      a backup differs from the pad by ≥ ${threshold().toFixed(2)} s, the two backups disagree by that much, a time is missing,
+      or the lane was marked as using a backup time (Quantum stores the backup average in the pad field, so the original pad time is not available).</p>`;
   }
 
   function overviewPage(data) {
@@ -362,6 +383,7 @@
         <div class="stat"><b>${heats}</b><span>Heats</span></div>
         <div class="stat"><b>${all.length}</b><span>Swims</span></div>
         <div class="stat"><b>${flagged}</b><span>Flagged lanes</span></div>
+        <div class="stat"><b>${all.filter((r) => r.backupUsed).length}</b><span>Backup times used</span></div>
       </div>
       <table class="rs"><thead><tr><th>Event</th><th>Round</th><th>Heats loaded</th><th>Heats not loaded</th>
         <th class="num">Swims</th><th class="num">Flagged</th></tr></thead>
@@ -377,7 +399,8 @@
         .map((h) => ({ ...h, rows: h.rows.filter((r) => r.flags.length) }))
         .filter((h) => h.rows.length);
       const heatsText = `${ev.heats.length} heat${ev.heats.length === 1 ? '' : 's'} · ${ev.swimmers} swims · `
-        + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`;
+        + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`
+        + `${ev.backupUsed ? ` · <strong>${ev.backupUsed} backup time${ev.backupUsed === 1 ? '' : 's'}</strong>` : ''}`;
       const missing = ev.missing.length ? `<p class="event-note">Heats not loaded: ${ev.missing.join(', ')}</p>` : '';
       const body = flaggedHeats.length
         ? flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showNames })}</div>`).join('')
@@ -402,13 +425,63 @@
       + (state.files.length > 40 ? `<div class="ok">…and ${state.files.length - 40} earlier files</div>` : '');
   }
 
+  /* ---------------- backup-time marking ---------------- */
+  const laneName = (r) => (r.entry && (r.entry.name || r.entry.club)) || '';
+  function fillSelect(sel, options) {
+    const prev = sel.value;
+    sel.innerHTML = options.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
+    if (options.some(([v]) => v === prev)) sel.value = prev;
+    sel.disabled = !options.length;
+  }
+  function markEvents() { return lastData ? lastData.events : []; }
+  function renderMarkControls() {
+    const events = markEvents();
+    fillSelect(els.markEvent, events.map((ev) => [ev.key, `${ev.event}${ev.round ? ' ' + ev.round : ''}${ev.name ? ' · ' + ev.name : ''}`]));
+    const ev = events.find((e) => e.key === els.markEvent.value);
+    fillSelect(els.markHeat, ev ? ev.heats.map((h) => [h.key, `Heat ${h.heat}`]) : []);
+    const heat = ev && ev.heats.find((h) => h.key === els.markHeat.value);
+    fillSelect(els.markLane, heat ? heat.rows.filter((r) => !r.empty).map((r) =>
+      [String(r.lane), `Lane ${r.lane}${laneName(r) ? ' · ' + laneName(r) : ''}${r.backupUsed ? ' ✓' : ''}`]) : []);
+    els.markAdd.disabled = els.markLane.disabled;
+
+    // List of current marks, matched to loaded heats where possible.
+    const items = [...state.marks].sort().map((m) => {
+      const lane = +m.split('|').pop();
+      const hk = m.slice(0, m.lastIndexOf('|'));
+      let label = m;
+      for (const e of events) {
+        const h = e.heats.find((x) => x.key === hk);
+        if (!h) continue;
+        const r = h.rows.find((x) => x.lane === lane && !x.empty);
+        label = `E${e.event} H${h.heat} L${lane}${r && laneName(r) ? ' · ' + laneName(r) : ''}${r && r.pad != null ? ' · ' + fmtTime(r.pad) : ''}`;
+      }
+      return `<li><span>${esc(label)}</span><button type="button" data-mark="${esc(m)}" aria-label="Remove mark">✕</button></li>`;
+    });
+    els.markList.innerHTML = items.join('');
+  }
+  els.markEvent.addEventListener('change', renderMarkControls);
+  els.markHeat.addEventListener('change', renderMarkControls);
+  els.markAdd.addEventListener('click', () => {
+    if (!els.markHeat.value || !els.markLane.value) return;
+    state.marks.add(`${els.markHeat.value}|${els.markLane.value}`);
+    saveMarks(); render();
+  });
+  els.markList.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mark]');
+    if (!b) return;
+    state.marks.delete(b.dataset.mark);
+    saveMarks(); render();
+  });
+
   function render() {
     renderStatus();
     const has = state.heats.size > 0;
     els.print.disabled = !has;
     els.clear.disabled = !state.files.length;
-    if (!has) { els.report.innerHTML = emptyStateHTML; return; }
+    if (!has) { lastData = null; renderMarkControls(); els.report.innerHTML = emptyStateHTML; return; }
     const data = analyse();
+    lastData = data;
+    renderMarkControls();
     const showNames = state.startList.size > 0;
     let html = '';
     if (els.optOverview.checked) html += overviewPage(data);
@@ -434,6 +507,7 @@
   els.print.addEventListener('click', () => window.print());
   els.clear.addEventListener('click', () => {
     state.heats.clear(); state.events.clear(); state.startList.clear(); state.startHeats.clear(); state.files = [];
+    state.marks.clear(); saveMarks();
     render();
   });
   for (const k of SETTINGS) {
@@ -442,5 +516,6 @@
   }
 
   loadSettings();
+  loadMarks();
   render();
 })();
