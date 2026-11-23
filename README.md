@@ -15,6 +15,10 @@ A lane is flagged (▲, shaded) when a backup differs from the pad by at least t
 
 When a backup time is used, Quantum writes the truncated backup average into the pad field. The app highlights every lane whose time equals its backup average (◆, boxed) on the Exceptions page. A pad time can also land on the average by chance, so treat these as lanes to check.
 
+## Disqualifications
+
+Quantum writes `Q` in the place field of a disqualified swim. The app shows it as **DQ** and flags the lane on the Exceptions page.
+
 ## Marking backup times
 
 When the referee accepts a backup time, Quantum overwrites the pad time in the `.qaq` file with the backup average (truncated to hundredths) and leaves no marker, so the app cannot detect it. Use **Backup times used** in the sidebar to pick the event, heat and lane. Marked lanes appear on the Exceptions page as "BACKUP TIME USED", with the official time labelled "from backups". Marks are saved in your browser until you press Clear.

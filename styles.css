@@ -158,6 +158,7 @@ table.rs th, table.rs td { border: 1px solid #9a9a9a; padding: 3px 6px; text-ali
 table.rs th { background: #e4e4e4; font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; }
 table.rs td.num, table.rs th.num { text-align: right; font-family: var(--mono); white-space: nowrap; }
 table.rs td.c, table.rs th.c { text-align: center; }
+table.rs td.status { font-weight: 800; }
 table.rs td.official { font-weight: 700; }
 table.rs tr.flag td { background: var(--flag-bg); }
 table.rs tr.flag td.flagcell { font-weight: 800; }

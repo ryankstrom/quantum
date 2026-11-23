@@ -14,6 +14,8 @@
   'use strict';
 
   const CLUB = 'Killarney Swim Club';
+  // Codes Quantum writes in the place field instead of a number. Only Q has been seen so far.
+  const PLACE_CODES = { Q: 'DQ' };
   const ROUND = { P: 'Prelims', F: 'Finals', T: 'Timed Final', S: 'Semi-Finals', Q: 'Swim-off' };
 
   const state = {
@@ -109,7 +111,10 @@
       const f = line.split(';');
       // Drop the trailing empty field produced by the final ';'
       if (f.length && f[f.length - 1].trim() === '') f.pop();
-      const place = int(f[0]);
+      const placeRaw = (f[0] || '').trim();
+      const place = int(placeRaw);
+      // A letter in the place field is a status code (Q = disqualified).
+      const status = place == null && placeRaw ? (PLACE_CODES[placeRaw.toUpperCase()] || placeRaw) : '';
       // Work from the end so the parser doesn't depend on split count:
       // … pad; backupA; backupB; code; reaction
       const n = f.length;
@@ -120,8 +125,8 @@
       const pad = parseTime(f[n - 5]);
       const splits = f.slice(2, Math.max(2, n - 5)).map(parseTime);
       const code = [(f[1] || '').trim(), code2].filter(Boolean).join(' ');
-      const hasData = [pad, backupA, backupB].some((t) => t != null) || !!code || (place != null && place > 0);
-      return { index: idx, place, pad, backupA, backupB, reaction, splits, code, hasData };
+      const hasData = [pad, backupA, backupB].some((t) => t != null) || !!code || !!status || (place != null && place > 0);
+      return { index: idx, place, status, pad, backupA, backupB, reaction, splits, code, hasData };
     });
 
     return {
@@ -260,6 +265,7 @@
         const dA = delta(r.backupA, r.pad), dB = delta(r.backupB, r.pad);
         const backups = [r.backupA, r.backupB].filter((t) => t != null).length;
         const flags = [];
+        if (r.status) flags.push(r.status === 'DQ' ? 'DQ' : `STATUS ${r.status}`);
         if (r.pad == null) flags.push('NO PAD');
         if (backups === 0) flags.push('NO BACKUP');
         else if (backups === 1) flags.push('1 BACKUP');
@@ -301,6 +307,7 @@
       ev.flagged = swum.filter((r) => r.flags.length).length;
       ev.backupUsed = swum.filter((r) => r.backupUsed).length;
       ev.avgMatch = swum.filter((r) => r.avgMatch).length;
+      ev.dq = swum.filter((r) => r.status === 'DQ').length;
       const planned = state.startHeats.get(ev.event);
       const loaded = new Set(ev.heats.map((h) => h.heat));
       ev.missing = planned ? [...planned].filter((h) => !loaded.has(h)).sort((a, b) => a - b) : [];
@@ -355,7 +362,7 @@
       const padLabel = r.backupUsed ? '<div class="tag">from backups</div>' : r.avgMatch ? '<div class="tag">= backup avg</div>' : '';
       const marker = r.flags.length ? '▲ ' : r.avgMatch ? '◆ ' : '';
       return `<tr class="${cls}">
-        <td class="c">${r.lane}</td><td class="c">${r.place ? r.place : ''}</td>
+        <td class="c">${r.lane}</td><td class="c${r.status ? ' status' : ''}">${r.status ? esc(r.status) : r.place ? r.place : ''}</td>
         ${showNames ? swimmerCell(r) : ''}
         <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}${padLabel}</td>
         <td class="num">${fmtTime(r.backupA)}</td>
@@ -391,6 +398,7 @@
         <div class="stat"><b>${all.length}</b><span>Swims</span></div>
         <div class="stat"><b>${flagged}</b><span>Flagged lanes</span></div>
         <div class="stat"><b>${all.filter((r) => r.avgMatch).length}</b><span>Time = backup avg</span></div>
+        <div class="stat"><b>${all.filter((r) => r.status === 'DQ').length}</b><span>Disqualified</span></div>
         <div class="stat"><b>${all.filter((r) => r.backupUsed).length}</b><span>Backup times marked</span></div>
       </div>
       <table class="rs"><thead><tr><th>Event</th><th>Round</th><th>Heats loaded</th><th>Heats not loaded</th>
@@ -407,6 +415,7 @@
         .map((h) => ({ ...h, rows: h.rows.filter((r) => r.flags.length || r.avgMatch) }))
         .filter((h) => h.rows.length);
       const heatsText = `${ev.heats.length} heat${ev.heats.length === 1 ? '' : 's'} · ${ev.swimmers} swims · `
+        + `${ev.dq ? `<strong>${ev.dq} DQ</strong> · ` : ''}`
         + `${ev.avgMatch ? `<strong>${ev.avgMatch} = backup avg</strong> · ` : ''}`
         + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`
         + `${ev.backupUsed ? ` · <strong>${ev.backupUsed} backup time${ev.backupUsed === 1 ? '' : 's'}</strong>` : ''}`;
