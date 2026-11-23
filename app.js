@@ -274,7 +274,10 @@
         }
         if (r.code) notes.push(r.code);
         if (sl && !entry) notes.push('Not on start list');
-        rows.push({ ...r, lane, entry, backupAvg, backupUsed, flags, notes });
+        // Quantum writes the truncated backup average into the pad field when a backup time is used,
+        // so a pad time equal to the backup average is the sign of a possible backup time.
+        const avgMatch = r.pad != null && backupAvg != null && Math.round(r.pad * 100) === Math.round(backupAvg * 100);
+        rows.push({ ...r, lane, entry, backupAvg, backupUsed, avgMatch, flags, notes });
       }
       if (sl) {
         for (const [lane, entry] of sl) {
@@ -297,6 +300,7 @@
       ev.swimmers = swum.length;
       ev.flagged = swum.filter((r) => r.flags.length).length;
       ev.backupUsed = swum.filter((r) => r.backupUsed).length;
+      ev.avgMatch = swum.filter((r) => r.avgMatch).length;
       const planned = state.startHeats.get(ev.event);
       const loaded = new Set(ev.heats.map((h) => h.heat));
       ev.missing = planned ? [...planned].filter((h) => !loaded.has(h)).sort((a, b) => a - b) : [];
@@ -346,24 +350,27 @@
         return `<tr class="empty"><td class="c">${r.lane}</td><td class="c"></td>${showNames ? swimmerCell(r) : ''}
           <td colspan="4">—</td><td>${esc(r.notes.join('; '))}</td></tr>`;
       }
-      const review = [...r.flags, ...r.notes].join('; ');
-      const cls = [r.flags.length ? 'flag' : '', r.backupUsed ? 'backup-used' : ''].join(' ').trim();
-      const padLabel = r.backupUsed ? '<div class="tag">from backups</div>' : '';
+      const review = [...r.flags, ...(r.avgMatch && !r.backupUsed ? ['TIME = BACKUP AVG'] : []), ...r.notes].join('; ');
+      const cls = [r.flags.length ? 'flag' : '', r.backupUsed ? 'backup-used' : '', r.avgMatch ? 'avg-match' : ''].join(' ').trim();
+      const padLabel = r.backupUsed ? '<div class="tag">from backups</div>' : r.avgMatch ? '<div class="tag">= backup avg</div>' : '';
+      const marker = r.flags.length ? '▲ ' : r.avgMatch ? '◆ ' : '';
       return `<tr class="${cls}">
         <td class="c">${r.lane}</td><td class="c">${r.place ? r.place : ''}</td>
         ${showNames ? swimmerCell(r) : ''}
         <td class="num official">${r.pad == null ? '—' : fmtTime(r.pad)}${padLabel}</td>
         <td class="num">${fmtTime(r.backupA)}</td>
         <td class="num">${fmtTime(r.backupB)}</td>
-        <td class="num">${fmtTime(r.backupAvg)}</td>
-        <td class="flagcell">${r.flags.length ? '▲ ' : ''}${esc(review)}</td>
+        <td class="num avg">${fmtTime(r.backupAvg)}</td>
+        <td class="flagcell">${marker}${esc(review)}</td>
       </tr>`;
     }).join('');
     return `<table class="rs">${colgroup(showNames)}<thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
   function legend() {
-    return `<p class="legend">Backup avg = average of the backup times, truncated to hundredths. ▲ shaded rows need the referee's attention:
+    return `<p class="legend">Backup avg = average of the backup times, truncated to hundredths.
+      ◆ boxed times equal the backup average: Quantum writes the backup average into the pad field when a backup time is used,
+      so these lanes may have used a backup time (a pad time can also match by chance). ▲ shaded rows need the referee's attention:
       a backup differs from the pad by ≥ ${threshold().toFixed(2)} s, the two backups disagree by that much, a time is missing,
       or the lane was marked as using a backup time (Quantum stores the backup average in the pad field, so the original pad time is not available).</p>`;
   }
@@ -376,17 +383,18 @@
       <td>${esc(eventTitle(ev))}</td><td>${esc(roundLabel(ev.round))}</td>
       <td>${ev.heats.map((h) => h.heat).join(', ')}</td>
       <td>${ev.missing.length ? ev.missing.join(', ') : (state.startHeats.has(ev.event) ? 'none' : '—')}</td>
-      <td class="num">${ev.swimmers}</td><td class="num">${ev.flagged}</td></tr>`).join('');
+      <td class="num">${ev.swimmers}</td><td class="num">${ev.avgMatch}</td><td class="num">${ev.flagged}</td></tr>`).join('');
     return `<section class="page">${pageHead('Meet Overview', 'Referee summary of Quantum heat results')}
       <div class="stats">
         <div class="stat"><b>${data.events.length}</b><span>Events</span></div>
         <div class="stat"><b>${heats}</b><span>Heats</span></div>
         <div class="stat"><b>${all.length}</b><span>Swims</span></div>
         <div class="stat"><b>${flagged}</b><span>Flagged lanes</span></div>
-        <div class="stat"><b>${all.filter((r) => r.backupUsed).length}</b><span>Backup times used</span></div>
+        <div class="stat"><b>${all.filter((r) => r.avgMatch).length}</b><span>Time = backup avg</span></div>
+        <div class="stat"><b>${all.filter((r) => r.backupUsed).length}</b><span>Backup times marked</span></div>
       </div>
       <table class="rs"><thead><tr><th>Event</th><th>Round</th><th>Heats loaded</th><th>Heats not loaded</th>
-        <th class="num">Swims</th><th class="num">Flagged</th></tr></thead>
+        <th class="num">Swims</th><th class="num">= Backup avg</th><th class="num">Flagged</th></tr></thead>
         <tbody>${rows}</tbody></table>
       <p class="legend" style="margin-top:12px">Review threshold ${threshold().toFixed(2)} s · lane numbering: first row = lane ${data.base}.
       ${state.startHeats.size ? '' : 'Add quantum.slx to list heats that have not been loaded and to show swimmer names.'}</p>
@@ -396,15 +404,16 @@
   function exceptionsPage(data, showNames) {
     const blocks = data.events.map((ev) => {
       const flaggedHeats = ev.heats
-        .map((h) => ({ ...h, rows: h.rows.filter((r) => r.flags.length) }))
+        .map((h) => ({ ...h, rows: h.rows.filter((r) => r.flags.length || r.avgMatch) }))
         .filter((h) => h.rows.length);
       const heatsText = `${ev.heats.length} heat${ev.heats.length === 1 ? '' : 's'} · ${ev.swimmers} swims · `
+        + `${ev.avgMatch ? `<strong>${ev.avgMatch} = backup avg</strong> · ` : ''}`
         + `${ev.flagged ? `<strong>${ev.flagged} flagged</strong>` : 'none flagged'}`
         + `${ev.backupUsed ? ` · <strong>${ev.backupUsed} backup time${ev.backupUsed === 1 ? '' : 's'}</strong>` : ''}`;
       const missing = ev.missing.length ? `<p class="event-note">Heats not loaded: ${ev.missing.join(', ')}</p>` : '';
       const body = flaggedHeats.length
         ? flaggedHeats.map((h) => `<div class="heat"><h3>Heat ${h.heat}<small>${esc(h.file)}</small></h3>${heatTable(ev, h, { showNames })}</div>`).join('')
-        : `<p class="event-clear">✓ No lanes flagged — heats ${ev.heats.map((h) => h.heat).join(', ')} all within ${threshold().toFixed(2)} s.</p>`;
+        : `<p class="event-clear">✓ No lanes flagged and no times equal to the backup average — heats ${ev.heats.map((h) => h.heat).join(', ')}.</p>`;
       return `<article class="event-block${flaggedHeats.length ? '' : ' clear'}">
         <header class="event-head">
           <div class="event-num"><span>Event</span>${ev.event}</div>
@@ -414,7 +423,7 @@
         <div class="event-body">${missing}${body}</div>
       </article>`;
     }).join('');
-    return `<section class="page">${pageHead('Exceptions — Lanes to Review', `Flagged lanes at ≥ ${threshold().toFixed(2)} s or with a missing time, by event`)}
+    return `<section class="page">${pageHead('Exceptions — Lanes to Review', `Times equal to the backup average, and lanes flagged at ≥ ${threshold().toFixed(2)} s or with a missing time, by event`)}
       ${legend()}${blocks}
     </section>`;
   }
@@ -441,7 +450,7 @@
     fillSelect(els.markHeat, ev ? ev.heats.map((h) => [h.key, `Heat ${h.heat}`]) : []);
     const heat = ev && ev.heats.find((h) => h.key === els.markHeat.value);
     fillSelect(els.markLane, heat ? heat.rows.filter((r) => !r.empty).map((r) =>
-      [String(r.lane), `Lane ${r.lane}${laneName(r) ? ' · ' + laneName(r) : ''}${r.backupUsed ? ' ✓' : ''}`]) : []);
+      [String(r.lane), `Lane ${r.lane}${laneName(r) ? ' · ' + laneName(r) : ''}${r.backupUsed ? ' ✓' : r.avgMatch ? ' ◆' : ''}`]) : []);
     els.markAdd.disabled = els.markLane.disabled;
 
     // List of current marks, matched to loaded heats where possible.

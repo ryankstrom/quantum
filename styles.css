@@ -164,7 +164,10 @@ table.rs tr.flag td.flagcell { font-weight: 800; }
 table.rs td.big { font-weight: 800; text-decoration: underline; }
 table.rs tr.empty td { color: #555; font-style: italic; }
 table.rs .tag { font-family: Inter, system-ui, sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
-table.rs tr.backup-used td.official { outline: 2px solid #000; outline-offset: -2px; }
+table.rs tr.backup-used td.official,
+table.rs tr.avg-match td.official,
+table.rs tr.avg-match td.avg { outline: 2px solid #000; outline-offset: -2px; }
+table.rs tr.avg-match td.avg { font-weight: 700; }
 table.rs .club { color: #444; font-size: 11px; }
 table.rs .splits { font-family: var(--mono); font-size: 10.5px; color: #333; }
 
